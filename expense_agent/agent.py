@@ -51,9 +51,15 @@ class Expense(BaseModel):
 
 class RiskReview(BaseModel):
     risk_score: int = Field(description="Risk score from 1 (low risk) to 5 (high risk)")
-    risk_factors: list[str] = Field(description="List of risk factors identified, or empty list")
-    alert_raised: bool = Field(description="True if an alert should be raised, False otherwise")
-    justification: str = Field(description="Detailed reason/justification for the risk score and alert status")
+    risk_factors: list[str] = Field(
+        description="List of risk factors identified, or empty list"
+    )
+    alert_raised: bool = Field(
+        description="True if an alert should be raised, False otherwise"
+    )
+    justification: str = Field(
+        description="Detailed reason/justification for the risk score and alert status"
+    )
 
 
 def parse_input_event(node_input: Any) -> Expense:
@@ -74,7 +80,7 @@ def parse_input_event(node_input: Any) -> Expense:
                 "submitter": "unknown_user",
                 "category": "other",
                 "description": text,
-                "date": "2026-06-26"
+                "date": "2026-06-26",
             }
     elif isinstance(node_input, str):
         try:
@@ -86,7 +92,7 @@ def parse_input_event(node_input: Any) -> Expense:
                 "submitter": "unknown_user",
                 "category": "other",
                 "description": node_input,
-                "date": "2026-06-26"
+                "date": "2026-06-26",
             }
     else:
         raise ValueError(f"Unsupported node_input type: {type(node_input)}")
@@ -106,7 +112,7 @@ def parse_input_event(node_input: Any) -> Expense:
             "submitter": "unknown_user",
             "category": "other",
             "description": text or "Chat Message",
-            "date": "2026-06-26"
+            "date": "2026-06-26",
         }
 
     # 3. Extract "data" field if present, otherwise assume raw_data contains fields directly
@@ -153,10 +159,9 @@ def route_node(ctx: Context, node_input: dict) -> Event:
         return Event(output=node_input, route="requires_review")
 
 
-
-SSN_REGEX = re.compile(r'\b\d{3}-\d{2}-\d{4}\b')
-CC_16_REGEX = re.compile(r'\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b')
-CC_15_REGEX = re.compile(r'\b\d{4}[- ]?\d{6}[- ]?\d{5}\b')
+SSN_REGEX = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+CC_16_REGEX = re.compile(r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b")
+CC_15_REGEX = re.compile(r"\b\d{4}[- ]?\d{6}[- ]?\d{5}\b")
 
 INJECTION_KEYWORDS = [
     "ignore previous instructions",
@@ -175,7 +180,7 @@ INJECTION_KEYWORDS = [
     "you must approve",
     "new instruction",
     "change the rules",
-    "do not review"
+    "do not review",
 ]
 
 
@@ -224,9 +229,7 @@ def security_checkpoint_node(ctx: Context, node_input: dict) -> Event:
     node_input["description"] = clean_description
     ctx.state["expense"]["description"] = clean_description
 
-    state_delta = {
-        "expense": ctx.state["expense"]
-    }
+    state_delta = {"expense": ctx.state["expense"]}
 
     if redacted_categories:
         state_delta["redacted_categories"] = redacted_categories
@@ -244,7 +247,7 @@ def auto_approve_node(ctx: Context, node_input: dict) -> Event:
         output={
             "approved": True,
             "reviewer": "system",
-            "notes": f"Auto-approved instantly (under ${config.THRESHOLD:.2f})."
+            "notes": f"Auto-approved instantly (under ${config.THRESHOLD:.2f}).",
         }
     )
 
@@ -252,11 +255,11 @@ def auto_approve_node(ctx: Context, node_input: dict) -> Event:
 def prepare_llm_prompt(ctx: Context, node_input: dict) -> str:
     """Prepares a clear textual representation of the expense for LLM consumption."""
     return f"""Please review this expense report for any risk factors:
-    Submitter: {node_input.get('submitter', 'Unknown')}
-    Amount: ${node_input.get('amount', 0.0):.2f}
-    Category: {node_input.get('category', 'Unknown')}
-    Description: {node_input.get('description', 'No description')}
-    Date: {node_input.get('date', 'Unknown')}
+    Submitter: {node_input.get("submitter", "Unknown")}
+    Amount: ${node_input.get("amount", 0.0):.2f}
+    Category: {node_input.get("category", "Unknown")}
+    Description: {node_input.get("description", "No description")}
+    Date: {node_input.get("date", "Unknown")}
     """
 
 
@@ -277,7 +280,11 @@ async def human_approval_node(ctx: Context, node_input: dict):
 
     # Check if we already have the human decision in resume inputs
     if not ctx.resume_inputs or "decision" not in ctx.resume_inputs:
-        redacted_str = f" (Redacted PII: {', '.join(ctx.state.get('redacted_categories'))})" if ctx.state.get("redacted_categories") else ""
+        redacted_str = (
+            f" (Redacted PII: {', '.join(ctx.state.get('redacted_categories'))})"
+            if ctx.state.get("redacted_categories")
+            else ""
+        )
 
         if ctx.state.get("security_event"):
             message = (
@@ -287,7 +294,11 @@ async def human_approval_node(ctx: Context, node_input: dict):
                 f"Please reply with 'approve' or 'reject'."
             )
         else:
-            alert_status = "⚠️ ALERT RAISED!" if node_input.get("alert_raised") else "No alerts raised."
+            alert_status = (
+                "⚠️ ALERT RAISED!"
+                if node_input.get("alert_raised")
+                else "No alerts raised."
+            )
             message = (
                 f"Expense of ${expense['amount']:.2f} by {expense['submitter']} "
                 f"requires manual approval.{redacted_str}\n"
@@ -320,7 +331,7 @@ async def human_approval_node(ctx: Context, node_input: dict):
         output={
             "approved": approved,
             "reviewer": "human",
-            "notes": f"Reviewed by human. Decision: {decision.upper()}."
+            "notes": f"Reviewed by human. Decision: {decision.upper()}.",
         }
     )
 
@@ -334,7 +345,11 @@ def record_outcome_node(ctx: Context, node_input: dict):
 
     security_flag = " (SECURITY EVENT)" if ctx.state.get("security_event") else ""
     redacted_categories = ctx.state.get("redacted_categories")
-    redacted_str = f" Redacted PII: {', '.join(redacted_categories)}." if redacted_categories else ""
+    redacted_str = (
+        f" Redacted PII: {', '.join(redacted_categories)}."
+        if redacted_categories
+        else ""
+    )
 
     if redacted_str:
         notes = (notes + redacted_str).strip()
@@ -351,10 +366,7 @@ def record_outcome_node(ctx: Context, node_input: dict):
 
     # Yield content event for Web UI rendering
     yield Event(
-        content=types.Content(
-            role="model",
-            parts=[types.Part.from_text(text=summary)]
-        )
+        content=types.Content(role="model", parts=[types.Part.from_text(text=summary)])
     )
     # Yield final output value
     yield Event(output=summary)
@@ -366,19 +378,25 @@ root_agent = Workflow(
     edges=[
         (START, parse_node),
         (parse_node, route_node),
-        (route_node, {
-            "auto_approve": auto_approve_node,
-            "requires_review": security_checkpoint_node,
-        }),
-        (security_checkpoint_node, {
-            "clean": prepare_llm_prompt,
-            "security_event": human_approval_node,
-        }),
+        (
+            route_node,
+            {
+                "auto_approve": auto_approve_node,
+                "requires_review": security_checkpoint_node,
+            },
+        ),
+        (
+            security_checkpoint_node,
+            {
+                "clean": prepare_llm_prompt,
+                "security_event": human_approval_node,
+            },
+        ),
         (prepare_llm_prompt, llm_review_node),
         (llm_review_node, human_approval_node),
         (auto_approve_node, record_outcome_node),
         (human_approval_node, record_outcome_node),
-    ]
+    ],
 )
 
 app = App(

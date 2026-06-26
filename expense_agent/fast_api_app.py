@@ -42,9 +42,16 @@ from expense_agent.app_utils.typing import Feedback
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-logger.info("Loaded Environment - GOOGLE_CLOUD_PROJECT: %s", os.getenv("GOOGLE_CLOUD_PROJECT"))
-logger.info("Loaded Environment - GOOGLE_CLOUD_LOCATION: %s", os.getenv("GOOGLE_CLOUD_LOCATION"))
-logger.info("Loaded Environment - GOOGLE_GENAI_USE_VERTEXAI: %s", os.getenv("GOOGLE_GENAI_USE_VERTEXAI"))
+logger.info(
+    "Loaded Environment - GOOGLE_CLOUD_PROJECT: %s", os.getenv("GOOGLE_CLOUD_PROJECT")
+)
+logger.info(
+    "Loaded Environment - GOOGLE_CLOUD_LOCATION: %s", os.getenv("GOOGLE_CLOUD_LOCATION")
+)
+logger.info(
+    "Loaded Environment - GOOGLE_GENAI_USE_VERTEXAI: %s",
+    os.getenv("GOOGLE_GENAI_USE_VERTEXAI"),
+)
 
 setup_telemetry()
 _, project_id = google.auth.default()
@@ -65,7 +72,9 @@ session_service = create_session_service_from_options(
     base_dir=AGENT_DIR,
     session_service_uri=session_service_uri,
 )
-runner = Runner(agent=root_agent, session_service=session_service, app_name="expense_agent")
+runner = Runner(
+    agent=root_agent, session_service=session_service, app_name="expense_agent"
+)
 
 app: FastAPI = get_fast_api_app(
     agents_dir=AGENT_DIR,
@@ -102,7 +111,11 @@ async def trigger_pubsub(app_name: str, req: PubSubTriggerRequest):
         subscription = subscription.split("/")[-1]
     user_id = subscription
 
-    logger.info("Pub/Sub trigger: subscription=%s (normalized user_id=%s)", req.subscription, user_id)
+    logger.info(
+        "Pub/Sub trigger: subscription=%s (normalized user_id=%s)",
+        req.subscription,
+        user_id,
+    )
 
     # Decode Pub/Sub message data
     data_payload = None
@@ -133,8 +146,7 @@ async def trigger_pubsub(app_name: str, req: PubSubTriggerRequest):
     )
 
     new_message = types.Content(
-        role="user",
-        parts=[types.Part.from_text(text=message_text)]
+        role="user", parts=[types.Part.from_text(text=message_text)]
     )
 
     logger.info("Running agent workflow in ambient mode for session=%s", session_id)

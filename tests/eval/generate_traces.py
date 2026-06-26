@@ -6,7 +6,9 @@ import sys
 from dotenv import load_dotenv
 
 # Load environment variables
-load_dotenv(dotenv_path="c:/Users/yyguy/OneDrive/Desktop/yev/ambient_expense_agent/.env")
+load_dotenv(
+    dotenv_path="c:/Users/yyguy/OneDrive/Desktop/yev/ambient_expense_agent/.env"
+)
 
 from google.adk.apps import App
 from google.adk.runners import InMemoryRunner
@@ -14,10 +16,11 @@ from google.genai import types
 
 from expense_agent.agent import root_agent
 
-sys.stdout.reconfigure(encoding='utf-8')
+sys.stdout.reconfigure(encoding="utf-8")
 
 # Ensure output directory exists
 os.makedirs("artifacts/traces", exist_ok=True)
+
 
 def build_turns(events, user_id):
     turns = []
@@ -40,29 +43,21 @@ def build_turns(events, user_id):
         if role == "user" or author == user_id:
             author = "user"
 
-        event_dict = {
-            "author": author,
-            "content": content_dict
-        }
+        event_dict = {"author": author, "content": content_dict}
 
         # Start a new turn if author is 'user' and we have prior events
         if author == "user" and current_turn_events:
-            turns.append({
-                "turn_index": turn_index,
-                "events": current_turn_events
-            })
+            turns.append({"turn_index": turn_index, "events": current_turn_events})
             turn_index += 1
             current_turn_events = []
 
         current_turn_events.append(event_dict)
 
     if current_turn_events:
-        turns.append({
-            "turn_index": turn_index,
-            "events": current_turn_events
-        })
+        turns.append({"turn_index": turn_index, "events": current_turn_events})
 
     return turns
+
 
 async def run_case(case):
     case_id = case["eval_case_id"]
@@ -77,15 +72,23 @@ async def run_case(case):
 
     # Try to delete session if it exists from a previous run to avoid AlreadyExistsError
     try:
-        await runner.session_service.delete_session(app_name="expense_agent", user_id=user_id, session_id=session_id)
+        await runner.session_service.delete_session(
+            app_name="expense_agent", user_id=user_id, session_id=session_id
+        )
     except Exception:
         pass
 
-    sess = await runner.session_service.create_session(app_name="expense_agent", user_id=user_id, session_id=session_id)
-    message = types.Content(role="user", parts=[types.Part.from_text(text=payload_text)])
+    sess = await runner.session_service.create_session(
+        app_name="expense_agent", user_id=user_id, session_id=session_id
+    )
+    message = types.Content(
+        role="user", parts=[types.Part.from_text(text=payload_text)]
+    )
 
     interrupted_id = None
-    async for event in runner.run_async(user_id=user_id, session_id=sess.id, new_message=message):
+    async for event in runner.run_async(
+        user_id=user_id, session_id=sess.id, new_message=message
+    ):
         if event.long_running_tool_ids:
             interrupted_id = list(event.long_running_tool_ids)[0]
 
@@ -93,7 +96,11 @@ async def run_case(case):
     if interrupted_id:
         # Determine decision: reject prompt injections, approve others
         # We can look at the case_id or check if the prompt description has injection keywords
-        is_injection = "injection" in case_id or "IGNORE PREVIOUS RULES" in payload_text or "Bypass all rules" in payload_text
+        is_injection = (
+            "injection" in case_id
+            or "IGNORE PREVIOUS RULES" in payload_text
+            or "Bypass all rules" in payload_text
+        )
         decision = "reject" if is_injection else "approve"
         print(f"Workflow paused. Automated human decision: '{decision.upper()}'")
 
@@ -104,35 +111,38 @@ async def run_case(case):
                     function_response=types.FunctionResponse(
                         name="adk_request_input",
                         id=interrupted_id,
-                        response={"decision": decision}
+                        response={"decision": decision},
                     )
                 )
-            ]
+            ],
         )
-        async for resume_event in runner.run_async(user_id=user_id, session_id=sess.id, new_message=resume_msg):
+        async for resume_event in runner.run_async(
+            user_id=user_id, session_id=sess.id, new_message=resume_msg
+        ):
             pass
 
     # Retrieve updated session events
-    sess_updated = await runner.session_service.get_session(app_name="expense_agent", user_id=user_id, session_id=sess.id)
+    sess_updated = await runner.session_service.get_session(
+        app_name="expense_agent", user_id=user_id, session_id=sess.id
+    )
     turns = build_turns(sess_updated.events, user_id)
 
     agent_data = {
         "agents": {
-            "ambient_expense_agent": {
-                "agent_id": "ambient_expense_agent"
-            },
-            "llm_review": {
-                "agent_id": "llm_review"
-            }
+            "ambient_expense_agent": {"agent_id": "ambient_expense_agent"},
+            "llm_review": {"agent_id": "llm_review"},
         },
-        "turns": turns
+        "turns": turns,
     }
 
     # Extract final text response for the 'response' field in EvalCase
     response_candidate = None
     for turn in reversed(turns):
         for event in reversed(turn["events"]):
-            if event["author"] == "ambient_expense_agent" and "text" in event["content"]["parts"][0]:
+            if (
+                event["author"] == "ambient_expense_agent"
+                and "text" in event["content"]["parts"][0]
+            ):
                 response_candidate = event["content"]
                 break
         if response_candidate:
@@ -141,13 +151,14 @@ async def run_case(case):
     case_trace = {
         "eval_case_id": case_id,
         "prompt": case["prompt"],
-        "agent_data": agent_data
+        "agent_data": agent_data,
     }
 
     if response_candidate:
         case_trace["responses"] = [{"response": response_candidate}]
 
     return case_trace
+
 
 async def main():
     # Load basic dataset
@@ -164,6 +175,7 @@ async def main():
         json.dump({"eval_cases": traces}, f, indent=2)
 
     print(f"\nSuccessfully generated traces and saved to {output_path}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
