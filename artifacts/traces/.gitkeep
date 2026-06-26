@@ -1,0 +1,2 @@
+# Generated eval traces are gitignored.
+# Run `make generate-traces` to regenerate this directory locally.
