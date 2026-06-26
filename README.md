@@ -37,19 +37,19 @@ An event-driven AI expense approval agent built with [Google ADK](https://adk.de
 
 ```mermaid
 flowchart TD
-    A([Pub/Sub Message]) --> B[parse_node\nDecode and validate Expense]
-    B --> C{route_node\nAmount < $100?}
+    A(["Cloud Pub/Sub Message"]) --> B["parse_node"]
+    B --> C{"route_node"}
 
-    C -- Yes --> D[auto_approve_node\nInstant system approval]
-    C -- No --> E[security_checkpoint_node\nScrub PII · Detect injection]
+    C -- "amount under $100" --> D["auto_approve_node"]
+    C -- "amount $100 or more" --> E["security_checkpoint_node"]
 
-    E -- Clean --> F[prepare_llm_prompt]
-    F --> G[llm_review_node\nGemini risk scoring]
-    G --> H[human_approval_node\nAwait approve or reject]
+    E -- "clean" --> F["prepare_llm_prompt"]
+    F --> G["llm_review_node"]
+    G --> H["human_approval_node"]
 
-    E -- Injection detected --> H
+    E -- "injection detected" --> H
 
-    D --> I[record_outcome_node\nLog and emit final summary]
+    D --> I["record_outcome_node"]
     H --> I
 
     style A fill:#4285F4,color:#fff
@@ -63,14 +63,14 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    IN[Raw Expense Input] --> SC[security_checkpoint_node]
+    IN["Raw Expense Input"] --> SC["security_checkpoint_node"]
 
-    SC -- SSN or CC found --> RED[Redact PII\ne.g. 123-45-6789 becomes REDACTED SSN]
-    SC -- Injection keyword found --> FLAG[Flag security_event\nSkip LLM and send to human]
-    SC -- Clean --> PASS[Pass through to LLM]
+    SC -- "SSN or CC found" --> RED["Redact PII"]
+    SC -- "injection keyword found" --> FLAG["Flag as security_event"]
+    SC -- "clean" --> PASS["Pass to LLM review"]
 
     RED --> PASS
-    FLAG --> HUM[Human Approval with SECURITY ALERT banner]
+    FLAG --> HUM["human_approval_node with SECURITY ALERT"]
 ```
 
 ---
