@@ -48,12 +48,19 @@ select = [
     "F",   # pyflakes
     "W",   # pycodestyle warnings
     "I",   # isort
-    "C",  # flake8-comprehensions
+    "C",   # flake8-comprehensions
     "B",   # flake8-bugbear
-    "UP", # pyupgrade
+    "UP",  # pyupgrade
     "RUF", # ruff specific rules
 ]
 ignore = ["E501", "C901", "B006"] # ignore line too long, too complex
+
+[tool.ruff.lint.per-file-ignores]
+# These files intentionally call load_dotenv() / set path vars before imports
+"expense_agent/fast_api_app.py" = ["E402"]
+"tests/integration/test_agent.py" = ["E402"]
+"tests/integration/test_server_e2e.py" = ["E402"]
+"tests/eval/generate_traces.py" = ["E402", "RUF015", "B007"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["expense_agent", "frontend"]

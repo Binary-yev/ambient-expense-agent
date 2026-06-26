@@ -1,9 +1,8 @@
-# ruff: noqa: E402
 import asyncio
 import json
 import os
 import sys
-import uuid
+
 from dotenv import load_dotenv
 
 # Load environment variables

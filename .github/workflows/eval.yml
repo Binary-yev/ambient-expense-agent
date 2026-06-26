@@ -3,7 +3,6 @@ name: Eval
 on:
   push:
     branches: [main]
-  # Allow manual trigger from GitHub UI
   workflow_dispatch:
 
 permissions:
@@ -13,6 +12,8 @@ jobs:
   eval:
     name: LLM-as-Judge Evaluation
     runs-on: ubuntu-latest
+    # Skip entirely when GCP credentials are not configured
+    if: vars.GOOGLE_CLOUD_PROJECT != '' || secrets.GCP_SA_KEY != ''
     env:
       GOOGLE_CLOUD_PROJECT: ${{ secrets.GOOGLE_CLOUD_PROJECT }}
       GOOGLE_CLOUD_LOCATION: ${{ secrets.GOOGLE_CLOUD_LOCATION || 'global' }}
