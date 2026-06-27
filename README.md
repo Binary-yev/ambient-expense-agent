@@ -2,15 +2,11 @@
 
 <!-- Replace Binary-yev/ambient-expense-agent with your actual GitHub repo path after pushing -->
 [![CI](https://github.com/Binary-yev/ambient-expense-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Binary-yev/ambient-expense-agent/actions/workflows/ci.yml)
-[![Security Scan](https://github.com/Binary-yev/ambient-expense-agent/actions/workflows/security.yml/badge.svg)](https://github.com/Binary-yev/ambient-expense-agent/actions/workflows/security.yml)
-[![Eval](https://github.com/Binary-yev/ambient-expense-agent/actions/workflows/eval.yml/badge.svg)](https://github.com/Binary-yev/ambient-expense-agent/actions/workflows/eval.yml)
-[![Integration Tests](https://github.com/Binary-yev/ambient-expense-agent/actions/workflows/integration.yml/badge.svg)](https://github.com/Binary-yev/ambient-expense-agent/actions/workflows/integration.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![Google ADK](https://img.shields.io/badge/Google_ADK-2.x-4285F4?logo=google&logoColor=white)](https://adk.dev/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://pre-commit.com/)
-[![CodeQL](https://github.com/Binary-yev/ambient-expense-agent/actions/workflows/security.yml/badge.svg?label=CodeQL)](https://github.com/Binary-yev/ambient-expense-agent/security/code-scanning)
 
 
 An event-driven AI expense approval agent built with [Google ADK](https://adk.dev/) and [agents-cli](https://github.com/google/agents-cli). It listens for expense submissions via **Google Cloud Pub/Sub**, automatically approves low-value requests, and routes high-value or suspicious ones through an LLM risk reviewer and human-in-the-loop approval — all with built-in PII scrubbing and prompt injection defence.
