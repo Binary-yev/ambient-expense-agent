@@ -24,6 +24,9 @@ from google.adk.agents.context import Context
 from google.adk.apps import App
 from google.adk.events.event import Event
 from google.adk.events.request_input import RequestInput
+from google.adk.plugins.bigquery_agent_analytics_plugin import (
+    BigQueryAgentAnalyticsPlugin,
+)
 from google.adk.workflow import START, Workflow, node
 from google.genai import types
 from pydantic import BaseModel, Field
@@ -399,8 +402,6 @@ root_agent = Workflow(
     ],
 )
 
-from google.adk.plugins.bigquery_agent_analytics_plugin import BigQueryAgentAnalyticsPlugin
-
 bq_dataset = os.environ.get("BQ_ANALYTICS_DATASET_ID")
 bq_project = os.environ.get("GOOGLE_CLOUD_PROJECT")
 
@@ -418,4 +419,3 @@ app = App(
     name="expense_agent",
     plugins=plugins,
 )
-
