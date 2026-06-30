@@ -25,6 +25,8 @@ An event-driven AI expense approval agent built with [Google ADK](https://adk.de
 | 🛡️ **Prompt Injection Defence** | Injection attempts bypass the LLM entirely and go straight to human review |
 | 📊 **LLM-as-Judge Evaluation** | Two custom eval metrics score routing correctness and security containment |
 | 🖥️ **Dev UI** | Built-in ADK Dev UI for interactive local testing at `http://127.0.0.1:8080/dev-ui/` |
+| 🚀 **Agent Runtime Deployment** | Production-ready Terraform configs and Agent Runtime deployment support for Vertex AI |
+| 📈 **BigQuery Agent Analytics** | Built-in telemetry plugin streaming events (LLM calls, tool usage, final decisions) directly to BigQuery, auto-generating helper views like `v_agent_response` |
 
 ---
 
@@ -332,6 +334,7 @@ agents-cli eval analyze --results artifacts/grade_results/results_*.json
 | `EXPENSE_MODEL_NAME` | `gemini-3.1-flash-lite` | Gemini model used for LLM risk review |
 | `LOGS_BUCKET_NAME` | — | GCS bucket for artifact storage (production use) |
 | `ALLOW_ORIGINS` | — | Comma-separated CORS origins for the FastAPI app |
+| `BQ_ANALYTICS_DATASET_ID` | — | BigQuery dataset ID for structured agent analytics |
 
 ---
 

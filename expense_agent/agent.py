@@ -399,7 +399,23 @@ root_agent = Workflow(
     ],
 )
 
+from google.adk.plugins.bigquery_agent_analytics_plugin import BigQueryAgentAnalyticsPlugin
+
+bq_dataset = os.environ.get("BQ_ANALYTICS_DATASET_ID")
+bq_project = os.environ.get("GOOGLE_CLOUD_PROJECT")
+
+plugins = []
+if bq_project and bq_dataset:
+    plugins.append(
+        BigQueryAgentAnalyticsPlugin(
+            project_id=bq_project,
+            dataset_id=bq_dataset,
+        )
+    )
+
 app = App(
     root_agent=root_agent,
     name="expense_agent",
+    plugins=plugins,
 )
+
