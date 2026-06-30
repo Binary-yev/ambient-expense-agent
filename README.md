@@ -58,6 +58,34 @@ flowchart TD
     style I fill:#9AA0A6,color:#fff
 ```
 
+### Deployment & Telemetry Architecture
+
+```mermaid
+flowchart TD
+    subgraph Trigger Entrypoints
+        PS(["Cloud Pub/Sub Trigger"]) -->|JSON Payload| FA["FastAPI Web Server"]
+        CLI(["agents-cli / Web App"]) -->|Direct Request| AR["Vertex AI Agent Runtime"]
+    end
+
+    subgraph Execution App (ADK Workflow)
+        FA -->|Executes Workflow| APP["App (expense_agent)"]
+        AR -->|Executes Workflow| APP
+    end
+
+    subgraph Telemetry & Observability
+        APP -->|Storage Write API| BQ[("BigQuery (ambient_expense_agent_telemetry)")]
+        BQ -->|Event Views| V1["v_agent_response"]
+        BQ -->|Event Views| V2["v_llm_request"]
+        BQ -->|Event Views| V3["v_hitl_input_request"]
+    end
+
+    style PS fill:#4285F4,color:#fff
+    style CLI fill:#4285F4,color:#fff
+    style AR fill:#34A853,color:#fff
+    style FA fill:#34A853,color:#fff
+    style BQ fill:#EA4335,color:#fff
+```
+
 ### Security Layer Detail
 
 ```mermaid
@@ -82,17 +110,22 @@ ambient_expense_agent/
 │   ├── agent.py              # Workflow definition, all nodes, PII/injection logic
 │   ├── config.py             # THRESHOLD and MODEL_NAME (env-configurable)
 │   ├── fast_api_app.py       # FastAPI app: Pub/Sub trigger + ADK Dev UI
+│   ├── agent_runtime_app.py  # Agent Runtime app entrypoint for server gateway
 │   └── app_utils/
 │       ├── telemetry.py      # OpenTelemetry setup
 │       └── typing.py         # Shared Pydantic types (Feedback, etc.)
 ├── tests/
 │   ├── unit/                 # Unit tests for individual nodes
-│   ├── integration/          # End-to-end workflow tests
+│   ├── integration/          # End-to-end workflow tests (including Agent Runtime gateway)
 │   └── eval/
 │       ├── datasets/
 │       │   └── basic-dataset.json   # 5 synthetic eval scenarios
 │       ├── generate_traces.py       # Runs eval cases -> artifacts/traces/
 │       └── eval_config.yaml         # LLM-as-judge metric definitions
+├── deployment/
+│   └── terraform/            # Production Terraform infrastructure modules
+│       ├── shared/           # Shared components (BigQuery analytics setup, SQL view completions)
+│       └── single-project/   # Single-project deployment resources (IAM, storage, telemetry)
 ├── artifacts/
 │   ├── traces/               # Generated traces (gitignored; run make generate-traces)
 │   └── grade_results/        # Generated grade reports (gitignored; run make grade)
