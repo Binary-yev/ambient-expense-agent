@@ -62,17 +62,17 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    subgraph Trigger Entrypoints
+    subgraph TriggerEntrypoints ["Trigger Entrypoints"]
         PS(["Cloud Pub/Sub Trigger"]) -->|JSON Payload| FA["FastAPI Web Server"]
         CLI(["agents-cli / Web App"]) -->|Direct Request| AR["Vertex AI Agent Runtime"]
     end
 
-    subgraph Execution App (ADK Workflow)
+    subgraph ExecutionApp ["Execution App (ADK Workflow)"]
         FA -->|Executes Workflow| APP["App (expense_agent)"]
         AR -->|Executes Workflow| APP
     end
 
-    subgraph Telemetry & Observability
+    subgraph TelemetryObservability ["Telemetry & Observability"]
         APP -->|Storage Write API| BQ[("BigQuery (ambient_expense_agent_telemetry)")]
         BQ -->|Event Views| V1["v_agent_response"]
         BQ -->|Event Views| V2["v_llm_request"]
