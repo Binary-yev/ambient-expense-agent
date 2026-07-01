@@ -1,15 +1,15 @@
-import os
-import json
 import asyncio
+import json
 import logging
-from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+import os
+
 import vertexai
-from vertexai.preview.reasoning_engines import ReasoningEngine
-from google.cloud.aiplatform_v1beta1 import types as aip_types
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from google.adk.sessions.vertex_ai_session_service import VertexAiSessionService
+from google.cloud.aiplatform_v1beta1 import types as aip_types
+from pydantic import BaseModel
+from vertexai.preview.reasoning_engines import ReasoningEngine
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,17 +20,21 @@ app = FastAPI(title="Manager Expense Approval Dashboard")
 # Read deployment metadata with local, parent, and env fallback
 metadata_path = os.path.join(os.path.dirname(__file__), "deployment_metadata.json")
 if not os.path.exists(metadata_path):
-    metadata_path = os.path.join(os.path.dirname(__file__), "..", "deployment_metadata.json")
+    metadata_path = os.path.join(
+        os.path.dirname(__file__), "..", "deployment_metadata.json"
+    )
 
 if not os.path.exists(metadata_path):
     PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
     AGENT_RUNTIME_ID = os.environ.get("AGENT_RUNTIME_ID")
     LOCATION = os.environ.get("LOCATION", "us-east1")
     if not PROJECT_ID or not AGENT_RUNTIME_ID:
-        raise ValueError("Neither deployment_metadata.json nor GOOGLE_CLOUD_PROJECT/AGENT_RUNTIME_ID environment variables are set.")
+        raise ValueError(
+            "Neither deployment_metadata.json nor GOOGLE_CLOUD_PROJECT/AGENT_RUNTIME_ID environment variables are set."
+        )
     runtime_id_str = f"projects/{PROJECT_ID}/locations/{LOCATION}/reasoningEngines/{AGENT_RUNTIME_ID}"
 else:
-    with open(metadata_path, "r") as f:
+    with open(metadata_path) as f:
         metadata = json.load(f)
     runtime_id_str = metadata["remote_agent_runtime_id"]
     parts = runtime_id_str.split("/")
@@ -38,83 +42,97 @@ else:
     LOCATION = parts[3]
     AGENT_RUNTIME_ID = parts[5]
 
-logger.info(f"Loaded config: Project={PROJECT_ID}, Location={LOCATION}, AgentID={AGENT_RUNTIME_ID}")
+logger.info(
+    f"Loaded config: Project={PROJECT_ID}, Location={LOCATION}, AgentID={AGENT_RUNTIME_ID}"
+)
 
 # Initialize Vertex AI
 vertexai.init(project=PROJECT_ID, location=LOCATION)
 engine = ReasoningEngine(runtime_id_str)
 session_service = VertexAiSessionService(
-    project=PROJECT_ID,
-    location=LOCATION,
-    agent_engine_id=AGENT_RUNTIME_ID
+    project=PROJECT_ID, location=LOCATION, agent_engine_id=AGENT_RUNTIME_ID
 )
+
 
 class ActionPayload(BaseModel):
     approved: bool
     interrupt_id: str
     user_id: str
 
+
 @app.get("/api/pending")
 async def get_pending_approvals():
     try:
         logger.info("Listing sessions from VertexAiSessionService...")
         response = await session_service.list_sessions(app_name=runtime_id_str)
-        
+
         pending_approvals = []
         for s in response.sessions:
             logger.info(f"Checking session {s.id} (user: {s.user_id})...")
             # Fetch the full session to retrieve history
             full_session = await session_service.get_session(
-                app_name="ambient_expense_agent",
-                user_id=s.user_id,
-                session_id=s.id
+                app_name="ambient_expense_agent", user_id=s.user_id, session_id=s.id
             )
-            
+
             # Find unresolved adk_request_input events
             unresolved_call = None
             for event in full_session.events:
                 if event.content and event.content.parts:
                     for part in event.content.parts:
                         # Check for request input call
-                        if getattr(part, "function_call", None) and part.function_call.name == "adk_request_input":
+                        if (
+                            getattr(part, "function_call", None)
+                            and part.function_call.name == "adk_request_input"
+                        ):
                             unresolved_call = {
                                 "id": part.function_call.id,
-                                "args": part.function_call.args
+                                "args": part.function_call.args,
                             }
                         # Check for response
-                        if getattr(part, "function_response", None) and part.function_response.name == "adk_request_input":
-                            if unresolved_call and unresolved_call["id"] == part.function_response.id:
+                        if (
+                            getattr(part, "function_response", None)
+                            and part.function_response.name == "adk_request_input"
+                        ):
+                            if (
+                                unresolved_call
+                                and unresolved_call["id"] == part.function_response.id
+                            ):
                                 unresolved_call = None
-            
+
             if unresolved_call:
                 expense = full_session.state.get("expense", {})
                 risk_review = full_session.state.get("risk_review", {})
-                
+
                 # Format a friendly summary message if not in args
                 message = unresolved_call["args"].get("message", "")
                 if not message:
                     message = f"Expense of ${expense.get('amount', 0.0):.2f} by {expense.get('submitter', 'Unknown')} requires manual approval."
-                
-                pending_approvals.append({
-                    "session_id": s.id,
-                    "user_id": s.user_id,
-                    "interrupt_id": unresolved_call["id"],
-                    "message": message,
-                    "expense": expense,
-                    "risk_review": risk_review
-                })
-        
+
+                pending_approvals.append(
+                    {
+                        "session_id": s.id,
+                        "user_id": s.user_id,
+                        "interrupt_id": unresolved_call["id"],
+                        "message": message,
+                        "expense": expense,
+                        "risk_review": risk_review,
+                    }
+                )
+
         logger.info(f"Found {len(pending_approvals)} pending approvals.")
         return pending_approvals
     except Exception as e:
         logger.error(f"Error fetching pending approvals: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
 
 @app.post("/api/action/{session_id}")
 async def action_approval(session_id: str, payload: ActionPayload):
     try:
-        logger.info(f"Resuming session {session_id} for user {payload.user_id} with approved={payload.approved}...")
-        
+        logger.info(
+            f"Resuming session {session_id} for user {payload.user_id} with approved={payload.approved}..."
+        )
+
         resume_payload = {
             "role": "user",
             "parts": [
@@ -122,22 +140,22 @@ async def action_approval(session_id: str, payload: ActionPayload):
                     "function_response": {
                         "id": payload.interrupt_id,
                         "name": "adk_request_input",
-                        "response": {"approved": payload.approved}
+                        "response": {"approved": payload.approved},
                     }
                 }
-            ]
+            ],
         }
-        
+
         req = aip_types.StreamQueryReasoningEngineRequest(
             name=engine.resource_name,
             input={
                 "user_id": payload.user_id,
                 "session_id": session_id,
-                "message": resume_payload
+                "message": resume_payload,
             },
-            class_method="stream_query"
+            class_method="stream_query",
         )
-        
+
         # Define synchronous execution generator worker
         def run_stream():
             res = engine.execution_api_client.stream_query_reasoning_engine(request=req)
@@ -151,12 +169,15 @@ async def action_approval(session_id: str, payload: ActionPayload):
 
         # Run stream query in worker thread to prevent blocking
         events = await asyncio.to_thread(run_stream)
-        logger.info(f"Session {session_id} resumed successfully. Received {len(events)} events.")
-        
+        logger.info(
+            f"Session {session_id} resumed successfully. Received {len(events)} events."
+        )
+
         return {"status": "success", "events": events}
     except Exception as e:
         logger.error(f"Error resuming session: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_dashboard():
@@ -193,7 +214,7 @@ async def serve_dashboard():
             font-family: 'Outfit', sans-serif;
             min-height: 100vh;
             overflow-x: hidden;
-            background-image: 
+            background-image:
                 radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.12) 0px, transparent 50%),
                 radial-gradient(at 100% 100%, rgba(244, 63, 94, 0.12) 0px, transparent 50%);
             background-attachment: fixed;
@@ -543,7 +564,7 @@ async def serve_dashboard():
             try {
                 const res = await fetch('/api/pending');
                 const data = await res.json();
-                
+
                 if (data.length === 0) {
                     grid.innerHTML = `
                         <div class="empty-state">
@@ -559,7 +580,7 @@ async def serve_dashboard():
                     const expense = item.expense || {};
                     const risk = item.risk_review || {};
                     const riskScore = risk.risk_score || 0;
-                    
+
                     let riskClass = 'risk-low';
                     let riskText = 'Low Risk';
                     if (riskScore >= 4) {
@@ -573,7 +594,7 @@ async def serve_dashboard():
                     const card = document.createElement('div');
                     card.className = 'card';
                     card.id = `card-${item.session_id}`;
-                    
+
                     // Risk factors list
                     let riskFactorsHtml = '';
                     if (risk.risk_factors && risk.risk_factors.length > 0) {
@@ -651,7 +672,7 @@ async def serve_dashboard():
                         user_id: userId
                     })
                 });
-                
+
                 const data = await res.json();
                 if (data.status === 'success') {
                     // Remove card from UI with a nice fadeout
