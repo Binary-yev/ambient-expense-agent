@@ -200,6 +200,7 @@ my_env.tfvars
 .env
 .requirements.txt
 .google-agents-cli/
+deployment_metadata.json
 
 # Generated eval artifacts — reproducible via `make generate-traces` / `make grade`
 # Exclude generated files but keep .gitkeep so directory structure is preserved

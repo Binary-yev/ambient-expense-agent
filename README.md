@@ -25,6 +25,8 @@ An event-driven AI expense approval agent built with [Google ADK](https://adk.de
 | 🛡️ **Prompt Injection Defence** | Injection attempts bypass the LLM entirely and go straight to human review |
 | 📊 **LLM-as-Judge Evaluation** | Two custom eval metrics score routing correctness and security containment |
 | 🖥️ **Dev UI** | Built-in ADK Dev UI for interactive local testing at `http://127.0.0.1:8080/dev-ui/` |
+| 💻 **Manager Dashboard** | Sleek glassmorphism web dashboard with interactive approve/reject controls querying agent sessions |
+| 🔀 **Pub/Sub Push Pipeline** | End-to-end event pipeline with OIDC authenticated push delivering unwrapped payloads to Agent Runtime |
 | 🚀 **Agent Runtime Deployment** | Production-ready Terraform configs and Agent Runtime deployment support for Vertex AI |
 | 📈 **BigQuery Agent Analytics** | Built-in telemetry plugin streaming events (LLM calls, tool usage, final decisions) directly to BigQuery, auto-generating helper views like `v_agent_response` |
 
@@ -62,14 +64,19 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    subgraph TriggerEntrypoints ["Trigger Entrypoints"]
-        PS(["Cloud Pub/Sub Trigger"]) -->|JSON Payload| FA["FastAPI Web Server"]
-        CLI(["agents-cli / Web App"]) -->|Direct Request| AR["Vertex AI Agent Runtime"]
+    subgraph TriggerEntrypoints ["Trigger Entrypoints & Events"]
+        PS(["Cloud Pub/Sub Topic 'expense-reports'"]) -->|OIDC Authenticated Push| SUB["Push Subscription 'expense-reports-push'"]
+        SUB -->|Unwrapped HTTP POST :streamQuery| AR["Vertex AI Agent Runtime"]
+        CLI(["agents-cli / Local Playground"]) -->|Direct API Call| AR
     end
 
     subgraph ExecutionApp ["Execution App (ADK Workflow)"]
-        FA -->|Executes Workflow| APP["App (expense_agent)"]
-        AR -->|Executes Workflow| APP
+        AR -->|Runs Agent App Container| APP["App (expense_agent)"]
+    end
+
+    subgraph ManagerDashboard ["Manager Dashboard"]
+        MD["FastAPI Service 'expense-manager-dashboard'"] -->|Query Sessions via OIDC| AR
+        MD -->|Submit Human Decision| AR
     end
 
     subgraph TelemetryObservability ["Telemetry & Observability"]
@@ -80,9 +87,10 @@ flowchart TD
     end
 
     style PS fill:#4285F4,color:#fff
+    style SUB fill:#4285F4,color:#fff
     style CLI fill:#4285F4,color:#fff
     style AR fill:#34A853,color:#fff
-    style FA fill:#34A853,color:#fff
+    style MD fill:#FBBC04,color:#000
     style BQ fill:#EA4335,color:#fff
 ```
 
@@ -114,6 +122,10 @@ ambient_expense_agent/
 │   └── app_utils/
 │       ├── telemetry.py      # OpenTelemetry setup
 │       └── typing.py         # Shared Pydantic types (Feedback, etc.)
+├── submission_frontend/      # Manager dashboard service
+│   ├── main.py               # FastAPI backend + sleek Glassmorphism UI
+│   ├── requirements.txt      # Frontend dependencies
+│   └── Dockerfile            # Container definition for Cloud Run
 ├── tests/
 │   ├── unit/                 # Unit tests for individual nodes
 │   ├── integration/          # End-to-end workflow tests (including Agent Runtime gateway)
@@ -227,6 +239,66 @@ Place this JSON in the Pub/Sub message `data` field, base64-encoded.
 | `approved` | `bool` | Final approval decision |
 | `reviewer` | `string` | `"system"` for auto-approval, `"human"` for manual review |
 | `notes` | `string` | Decision notes; includes redacted PII categories if any were found |
+
+---
+
+### Pub/Sub Push Payload (Unwrapped)
+
+Delivered directly to the Agent Runtime `:streamQuery` endpoint by the `expense-reports-push` subscription.
+
+```json
+{
+  "input": {
+    "user_id": "default-user",
+    "message": "{\"amount\": 150.0, \"submitter\": \"Bob\", \"category\": \"Meals\", \"description\": \"Client dinner\", \"date\": \"2026-06-30\"}"
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `input.user_id` | `string` | Identifies the session creator context (defaults to `default-user`) |
+| `input.message` | `string` | JSON-serialized string of the target Expense object |
+
+---
+
+### Dashboard Pending API Response
+
+`GET /api/pending`
+
+```json
+[
+  {
+    "session_id": "6549672569161646080",
+    "interrupt_id": "decision",
+    "expense": {
+      "amount": 150.0,
+      "submitter": "Bob",
+      "category": "Meals",
+      "description": "Client dinner at high-end restaurant",
+      "date": "2026-06-30"
+    },
+    "risk_review": {
+      "risk_score": 2,
+      "risk_factors": ["Ambiguous client details", "Missing attendee names"],
+      "alert_raised": false,
+      "justification": "The expense amount is reasonable..."
+    }
+  }
+]
+```
+
+---
+
+### Dashboard Action Submission API
+
+`POST /api/action/{session_id}`
+
+```json
+{
+  "approved": true
+}
+```
 
 ---
 
