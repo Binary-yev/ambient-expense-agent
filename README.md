@@ -36,76 +36,76 @@ An event-driven AI expense approval agent built with [Google ADK](https://adk.de
 
 ### Workflow Graph
 
-```mermaid
-flowchart TD
-    A(["Cloud Pub/Sub Message"]) --> B["parse_node"]
-    B --> C{"route_node"}
-
-    C -- "amount under $100" --> D["auto_approve_node"]
-    C -- "amount $100 or more" --> E["security_checkpoint_node"]
-
-    E -- "clean" --> F["prepare_llm_prompt"]
-    F --> G["llm_review_node"]
-    G --> H["human_approval_node"]
-
-    E -- "injection detected" --> H
-
-    D --> I["record_outcome_node"]
-    H --> I
-
-    style A fill:#4285F4,color:#fff
-    style D fill:#34A853,color:#fff
-    style H fill:#FBBC04,color:#000
-    style E fill:#EA4335,color:#fff
-    style I fill:#9AA0A6,color:#fff
+```text
+                  ┌─────────────────────────────┐
+                  │  Cloud Pub/Sub Event/Message│
+                  └──────────────┬──────────────┘
+                                 │
+                           [ parse_node ]
+                                 │
+                          [ route_node ]
+                                 │
+                 ┌───────────────┴───────────────┐
+                 ▼ (amount < $100)               ▼ (amount >= $100)
+       [ auto_approve_node ]           [ security_checkpoint_node ]
+                 │                               │
+                 │                 ┌─────────────┴─────────────┐
+                 │                 │ (clean)                   │ (injection)
+                 │                 ▼                           ▼
+                 │        [ prepare_llm_prompt ]        [ Skip LLM Review ]
+                 │                 │                           │
+                 │        [ llm_review_node ]                  │
+                 │                 │                           │
+                 │                 └─────────────┬─────────────┘
+                 │                               ▼
+                 │                      [ human_approval_node ]
+                 │                               │
+                 └───────────────┬───────────────┘
+                                 ▼
+                      [ record_outcome_node ]
 ```
 
 ### Deployment & Telemetry Architecture
 
-```mermaid
-flowchart TD
-    subgraph TriggerEntrypoints ["Trigger Entrypoints & Events"]
-        PS(["Cloud Pub/Sub Topic 'expense-reports'"]) -->|OIDC Authenticated Push| SUB["Push Subscription 'expense-reports-push'"]
-        SUB -->|Unwrapped HTTP POST :streamQuery| AR["Vertex AI Agent Runtime"]
-        CLI(["agents-cli / Local Playground"]) -->|Direct API Call| AR
-    end
-
-    subgraph ExecutionApp ["Execution App (ADK Workflow)"]
-        AR -->|Runs Agent App Container| APP["App (expense_agent)"]
-    end
-
-    subgraph ManagerDashboard ["Manager Dashboard"]
-        MD["FastAPI Service 'expense-manager-dashboard'"] -->|Query Sessions via OIDC| AR
-        MD -->|Submit Human Decision| AR
-    end
-
-    subgraph TelemetryObservability ["Telemetry & Observability"]
-        APP -->|Storage Write API| BQ[("BigQuery (ambient_expense_agent_telemetry)")]
-        BQ -->|Event Views| V1["v_agent_response"]
-        BQ -->|Event Views| V2["v_llm_request"]
-        BQ -->|Event Views| V3["v_hitl_input_request"]
-    end
-
-    style PS fill:#4285F4,color:#fff
-    style SUB fill:#4285F4,color:#fff
-    style CLI fill:#4285F4,color:#fff
-    style AR fill:#34A853,color:#fff
-    style MD fill:#FBBC04,color:#000
-    style BQ fill:#EA4335,color:#fff
+```text
+  ┌──────────────────────────┐           ┌───────────────────────────┐
+  │  Pub/Sub push-invoker SA │           │     Manager Dashboard     │
+  └─────────────┬────────────┘           └─────────────┬─────────────┘
+                │                                      │
+                │ (push unwrapped payload)             │ (query/resume API)
+                ▼                                      ▼
+  ┌──────────────────────────────────────────────────────────────────┐
+  │                  Vertex AI Agent Runtime (OIDC)                  │
+  └─────────────────────────────┬────────────────────────────────────┘
+                                │
+                                ▼
+  ┌──────────────────────────────────────────────────────────────────┐
+  │                     App Workflow Execution                       │
+  └─────────────────────────────┬────────────────────────────────────┘
+                                │
+                                ▼ (telemetry streaming)
+  ┌──────────────────────────────────────────────────────────────────┐
+  │             BigQuery Structured Analytics Dataset                │
+  ├──────────────────────────────────────────────────────────────────┤
+  │  - v_agent_response  - v_llm_request  - v_hitl_input_request     │
+  └──────────────────────────────────────────────────────────────────┘
 ```
 
 ### Security Layer Detail
 
-```mermaid
-flowchart LR
-    IN["Raw Expense Input"] --> SC["security_checkpoint_node"]
-
-    SC -- "SSN or CC found" --> RED["Redact PII"]
-    SC -- "injection keyword found" --> FLAG["Flag as security_event"]
-    SC -- "clean" --> PASS["Pass to LLM review"]
-
-    RED --> PASS
-    FLAG --> HUM["human_approval_node with SECURITY ALERT"]
+```text
+                        ┌─────────────────────────┐
+                        │   Raw Expense Input     │
+                        └────────────┬────────────┘
+                                     │
+                        [ security_checkpoint_node ]
+                                     │
+            ┌────────────────────────┼────────────────────────┐
+            ▼ (PII Detected)         ▼ (Injection Detected)   ▼ (Clean)
+       [ Redact PII ]        [ Flag Security Event ]     [ Pass to LLM ]
+            │                        │                        │
+            ▼                        ▼                        ▼
+      [ Pass to LLM ]       [ Route directly to human ]  [ gemini-flash-lite ]
 ```
 
 ---
